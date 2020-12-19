@@ -1,0 +1,498 @@
+# {{ benchmark_name }}
+# 1. Initial Setup
+# Items in this section are advised for all systems, but may be difficult or require extensive 
+# preparation after the initial setup of the system.
+
+# 1.1 Filesystem Configuration
+# Directories that are used for system-wide functions can be further protected by placing
+# them on separate partitions. This provides protection for resource exhaustion and enables
+# the use of mounting options that are applicable to the directory's intended use. Users' data
+# can be stored on separate partitions and have stricter mount options. A user partition is a
+# filesystem that has been established for use by the users and does not contain software for
+# system operations.
+# The recommendations in this section are easier to perform during initial system
+# installation. If the system is already installed, it is recommended that a full backup be
+# performed before repartitioning the system.
+# Note: If you are repartitioning a system that has already been installed, make sure the data
+# has been copied over to the new partition, unmount it and then remove the data from the
+# directory that was in the old partition. Otherwise it will still consume space in the old
+# partition that will be masked when the new filesystem is mounted. For example, if a system is
+# in single-user mode with no filesystems mounted and the administrator adds a lot of data to
+# the /tmp directory, this data will still consume space in / once the /tmp filesystem is mounted
+# unless it is removed first.
+
+# 1.1.1 Disable unused filesystems
+# A number of uncommon filesystem types are supported under Linux. Removing support for
+# unneeded filesystem types reduces the local attack surface of the system. If a filesystem
+# type is not needed it should be disabled. Native Linux file systems are designed to ensure
+# that built-in security controls function as expected. Non-native filesystems can lead to
+# unexpected consequences to both the security and functionality of the system and should
+# be used with caution. Many filesystems are created for niche use cases and are not
+# maintained and supported as the operating systems are updated and patched. Users of
+# non-native filesystems should ensure that there is attention and ongoing support for them,
+# especially in light of frequent operating system changes.
+# Standard network connectivity and Internet access to cloud storage may make the use of
+# non-standard filesystem formats to directly attach heterogeneous devices much less
+# attractive.
+# Note: This should not be considered a comprehensive list of filesystems. You may wish to
+# consider additions to those listed here for your environment.
+
+- name: 1.1.1.1 Ensure mounting of cramfs filesystems is disabled
+  lineinfile:
+    dest: /etc/modprobe.d/cramfs.conf
+    regexp: "^(#)?install cramfs(\\s|$)"
+    line: "install cramfs /bin/true"
+    create: yes
+  tags:
+    - level_1_server
+    - rule_1.1.1.1
+
+- name: 1.1.1.2 Ensure mounting of squashfs filesystems is disabled
+  lineinfile:
+    dest: /etc/modprobe.d/squashfs.conf
+    regexp: "^(#)?install squashfs(\\s|$)"
+    line: "install squashfs /bin/true"
+    create: yes
+  tags:
+    - level_2_server
+    - rule_1.1.1.2
+
+- name: 1.1.1.3 Ensure mounting of udf filesystems is disabled
+  lineinfile:
+    dest: /etc/modprobe.d/udf.conf
+    regexp: "^(#)?install udf(\\s|$)"
+    line: "install udf /bin/true"
+    create: yes
+  tags:
+    - level_1_server
+    - rule_1.1.1.3
+
+- name: 1.1.1.4 Ensure mounting of FAT filesystems is limited
+  lineinfile:
+    dest: /etc/modprobe.d/fat.conf
+    regexp: "^(#)?install {{ item }}(\\s|$)"
+    line: "install {{ item }} /bin/true"
+    create: yes
+  loop: ["fat", "vfat", "msdos"]
+  tags:
+    - level_2_server
+    - rule_1.1.1.4
+
+- name: 1.1.2 Ensure /tmp is configured
+  systemd:
+    name: tmp.mount
+    daemon_reload: yes
+    masked: no
+    state: started
+  tags:
+    - level_1_server
+    - rule_1.1.2
+
+- name: 1.1.2 Ensure /tmp is configured
+  copy:
+    src: files/tmp.mount
+    dest: /etc/systemd/system/tmp.mount
+    owner: root
+    group: root
+    mode: 0644
+  notify: systemd restart tmp.mount
+  tags:
+  - level_1_server
+  - rule_1.1.2
+
+
+- name: "1.1.3 Ensure noexec option set on /tmp partition \n
+      \t 1.1.4 Ensure nodev option set on /tmp partition \n
+      \t 1.1.5 Ensure nosuid option set on /tmp partition"
+  mount:
+    path: /tmp
+    opts: "nosuid,nodev,noexec"
+    state: mounted
+    fstype: tmpfs
+    src: tmpf
+  tags:
+    - level_1_server
+    - rule_1.1.3
+    - rule_1.1.4
+    - rule_1.1.5
+
+- name: 1.1.6 Ensure /dev/shm is configured
+  lineinfile:
+    dest: /etc/fstab
+    regexp: '^tmpfs\s+/dev/shm\s+tmpfs.*$'
+    line: "tmpfs /dev/shm tmpfs defaults,noexec,nodev,nosuid,seclabel 0 0"
+    state: present
+  tags:
+    - level_1_server
+    - rule_1.1.6
+
+- name: "1.1.7 Ensure noexec option set on /dev/shm partition \n
+      \t 1.1.8 Ensure nodev option set on /dev/shm partition \n
+      \t 1.1.9 Ensure nosuid option set on /dev/shm partition"
+  mount:
+    path: /dev/shm
+    opts: "defaults,noexec,nodev,nosuid,seclabel"
+    state: mounted
+    fstype: tmpfs
+    src: tmpfs
+  tags:
+    - level_1_server
+    - rule_1.1.7
+    - rule_1.1.8
+    - rule_1.1.9
+
+- name: 1.1.10 Ensure separate partition exists for /var
+  shell: mount | grep -E '\s/var\s'
+  register: var_mounted
+  changed_when: no
+  failed_when: no
+  tags:
+    - level_2_server
+    - rule_1.1.10
+
+- name: 1.1.11 Ensure separate partition exists for /var/tmp
+  shell: mount | grep -E '\s/var\s'
+  register: var_tmp_mounted
+  changed_when: no
+  failed_when: no
+  tags:
+    - level_2_server
+    - rule_1.1.11
+
+- name: "1.1.12 Ensure noexec option set on /var/tmp partition \n
+      \t 1.1.13 Ensure nodev option set on /var/tmp partition \n
+      \t 1.1.14 Ensure nosuid option set on /var/tmp partition"
+  mount:
+    path: /var/tmp
+    opts: "rw,nosuid,nodev,noexec,relatime"
+    state: mounted
+    fstype: tmpfs
+    src: tmpfs
+  tags:
+    - level_1_server
+    - rule_1.1.12
+    - rule_1.1.13
+    - rule_1.1.14
+
+- name: 1.1.15 Ensure separate partition exists for /var/log
+  shell: mount | grep -E '\s/var/log\s'
+  register: var_log_mounted
+  changed_when: no
+  failed_when: no
+  tags:
+    - level_2_server
+    - rule_1.1.15
+
+- name: 1.1.16 Ensure separate partition exists for /var/log/audit
+  shell: mount | grep -E '\s/var/log/audit\s'
+  register: var_log_audit_mounted
+  changed_when: no
+  failed_when: no
+  tags:
+    - level_2_server
+    - rule_1.1.16
+
+- name: 1.1.17 Ensure separate partition exists for /home
+  shell: mount | grep /home
+  register: home_mounted
+  changed_when: no
+  failed_when: no
+  tags:
+    - level_2_server
+    - rule_1.1.17
+
+- name: 1.1.18 Ensure nodev option set on /home partition
+  mount:
+    path: /home
+    opts: nodev
+    state: mounted
+    fstype: "{{ item.fstype }}"
+    src: "{{ item.device }}"
+  tags:
+    - level_1_server
+    - rule_1.1.18
+  when:
+    - item.mount == "/home"
+  with_items:
+    - "{{ ansible_mounts }}"
+  
+# 1.1.19 Ensure noexec option set on removable media partitions
+# 1.1.20 Ensure nodev option set on removable media partitions
+# 1.1.21 Ensure nosuid option set on removable media partitions
+
+- name: 1.1.22 Ensure sticky bit is set on all world-writable directories
+  shell: df --local -P | awk '{if (NR!=1) print $6}' | xargs -I '{}' find '{}' -xdev -type d \( -perm -0002 -a ! -perm -1000 \) 2>/dev/null | xargs -I '{}' chmod a+t '{}'
+  tags:
+    - level_1_server
+    - rule_1.1.22
+
+- name: 1.1.23 Disable Automounting
+  systemd:
+    name: autofs
+    masked: yes
+    state: stopped
+
+  tags:
+    - level_1_server
+    - rule_1.1.23
+
+- name: 1.1.24 Disable USB Storage
+  lineinfile:
+    dest: /etc/modprobe.d/usb_storage.conf
+    regexp: "^(#)?install usb-storage(\\s|$)"
+    line: "install usb-storage /bin/true"
+    create: yes
+  tags:
+    - level_1_server
+    - rule_1.1.24
+
+# 1.2 Configure Software Updates
+# Most distributions use a package manager such as yum, apt, or zypper to install and update
+# software packages. Patch management procedures may vary widely between enterprises.
+# Large enterprises may choose to install a local updates server that can be used in place of
+# their distributions servers, whereas a single deployment of a system may prefer to get
+# updates directly. Updates can be performed automatically or manually, depending on the
+# site's policy for patch management. Many large enterprises prefer to test patches on a non-
+# production system before rolling out to production.
+# For the purpose of this benchmark, the requirement is to ensure that a patch management
+# system is configured and maintained. The specifics on patch update procedures are left to
+# the organization.
+
+- name: 1.2.1 Ensure GPG keys are configured
+  shell: rpm -q gpg-pubkey --qf '%{name}-%{version}-%{release} --> %{summary}\n'
+  register: gpg_keys
+  tags:
+    - level_1_server
+    - rule_1.2.1
+
+- name: 1.2.2 Ensure package manager repositories are configured
+  shell: yum repolist
+  register: repolist
+  tags:
+    - level_1_server
+    - rule_1.2.2
+
+- name: 1.2.3 Ensure gpgcheck is globally activated 
+  replace:
+    name: /etc/yum.conf
+    regexp: "^gpgcheck=0"
+    replace: "gpgcheck=1"
+  tags:
+    - level_1_server
+    - rule_1.2.3
+
+- name: 1.2.4 Ensure Red Hat Subscription Manager connection is configured
+  shell: subscription-manager register --username admin-example --password secret --auto-attach --force
+  ignore_errors: true # Because I don't have Red Hat subscription account
+  tags:
+    - level_1_server
+    - rule_1.2.4
+
+- name: 1.2.5 Disable the rhnsd Daemon
+  systemd:
+    name: rhnsd
+    masked: yes
+    state: stopped
+  tags:
+    - level_2_server
+    - rule_1.2.5
+
+# 1.3 Configure sudo
+# sudo allows a permitted user to execute a command as the superuser or another user, as
+# specified by the security policy. The invoking user's real (not effective) user ID is used to
+# determine the user name with which to query the security policy.
+# sudo supports a plugin architecture for security policies and input/output logging. Third
+# parties can develop and distribute their own policy and I/O logging plugins to work
+# seamlessly with the sudo front end. The default security policy is sudoers, which is
+# configured via the file /etc/sudoers.
+
+- name: 1.3.1 Ensure sudo is installed
+  package:
+    name: sudo
+    state: present
+  tags:
+    - level_1_server
+    - rule_1.3.1
+
+- name: 1.3.2 Ensure sudo commands use pty
+  lineinfile:
+    dest: /etc/sudoers
+    regexp: "^\\s*Defaults\\s+([^#]+(,s*|\\s+))?use_pty\\b"
+    line: "Defaults    use_pty"
+    insertafter: "^Defaults"
+    create: yes  
+  tags:
+    - level_1_server
+    - rule_1.3.2
+
+- name: 1.3.3 Ensure sudo log file exists
+  lineinfile:
+    dest: /etc/sudoers
+    regexp: "^\\s*Defaults\\s+([^#;]+,\\s*)?logfile\\s*=\\s*(\")?[^#;]+(\")?"
+    line: "Defaults    logfile=\"/var/log/sudo.log\""
+    insertafter: "^Defaults"
+    create: yes  
+  tags:
+    - level_1_server
+    - rule_1.3.3
+
+# 1.4 Filesystem Integrity Checking
+# AIDE is a file integrity checking tool, similar in nature to Tripwire. While it cannot prevent
+# intrusions, it can detect unauthorized changes to configuration files by alerting when the
+# files are changed. When setting up AIDE, decide internally what the site policy will be
+# concerning integrity checking. Review the AIDE quick start guide and AIDE documentation
+# before proceeding.
+
+- name: 1.4.1 Ensure AIDE is installed
+  package:
+    name: aide
+    state: present
+  tags:
+    - level_1_server
+    - rule_1.4.1
+
+- name: 1.4.1 Ensure AIDE is installed | Init AIDE
+  shell: aide --init && mv /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
+  tags:
+    - level_1_server
+    - rule_1.4.1
+
+- name: 1.4.2 Ensure filesystem integrity is regularly checked
+  cron:
+    name: Run AIDE integrity check weekly
+    cron_file: "{{ rhel7cis_aide_cron['cron_file'] }}"
+    user: "{{ rhel7cis_aide_cron['cron_user'] }}"
+    minute: "{{ rhel7cis_aide_cron['aide_minute'] | default('0') }}"
+    hour: "{{ rhel7cis_aide_cron['aide_hour'] | default('5') }}"
+    day: "{{ rhel7cis_aide_cron['aide_day'] | default('*') }}"
+    month: "{{ rhel7cis_aide_cron['aide_month'] | default('*') }}"
+    weekday: "{{ rhel7cis_aide_cron['aide_weekday'] | default('*') }}"
+    job: "{{ rhel7cis_aide_cron['aide_job'] }}"
+  tags:
+    - level_1_server
+    - rule_1.4.2
+
+# 1.5 Secure Boot Settings
+# The recommendations in this section focus on securing the bootloader and settings
+# involved in the boot process directly.
+
+# - name: 1.5.1 Ensure bootloader password is set
+  
+#   tags:
+#     - level_1_server
+#     - rule_1.5.1
+
+# 1.5.2 Ensure permissions on bootloader config are configured (Automated)  91
+# 1.5.3 Ensure authentication required for single user mode (Automated) . 93
+# 1.6 Additional Process Hardening
+
+# - name: 1.6.1 Ensure core dumps are restricted
+#   package:
+#     name: coredump
+#     state: present
+#   notify: start coredump service
+#   tags:
+#     - level_1_server
+#     - rule_1.4.2
+# 1.6.2 Ensure XD/NX support is enabled (Automated) . 98
+# 1.6.3 Ensure address space layout randomization (ASLR) is enabled (Automated)
+
+- name: 1.6.4 Ensure prelink is disabled
+  package:
+    name: prelink
+    state: absent
+  tags:
+    - level_1_server
+    - rule_1.6.4
+
+# 1.7 Mandatory Access Control
+# Mandatory Access Control (MAC) provides an additional layer of access restrictions to
+# processes on top of the base Discretionary Access Controls. By restricting how processes
+# can access files and resources on a system the potential impact from vulnerabilities in the
+# processes can be reduced.
+# Impact: Mandatory Access Control limits the capabilities of applications and daemons on a
+# system, while this can prevent unauthorized access, the configuration of MAC can be
+# complex and difficult to implement correctly preventing legitimate access from occurring.
+
+# 1.7.1 Configure SELinux
+# SELinux provides a Mandatory Access Control (MAC) system that greatly augments the
+# default Discretionary Access Control (DAC) model. Under SELinux, every process and every
+# object (files, sockets, pipes) on the system is assigned a security context, a label that
+# includes detailed type information about the object. The kernel allows processes to access
+# objects only if that access is explicitly allowed by the policy in effect. The policy defines
+# transitions, so that a user can be allowed to run software, but the software can run under a
+# different context than the user's default. This automatically limits the damage that the
+# software can do to files accessible by the calling user. The user does not need to take any
+# action to gain this benefit. For an action to occur, both the traditional DAC permissions
+# must be satisfied as well as the SELinux MAC rules. The action will not be allowed if either
+# one of these models does not permit the action. In this way, SELinux rules can only make a
+# system's permissions more restrictive and secure. SELinux requires a complex policy to
+# allow all the actions required of a system under normal operation. Three such policies have
+# been designed for use with RHEL7 and are included with the system: targeted, strict, and
+# mls. These are described as follows:
+# targeted: consists mostly of Type Enforcement (TE) rules, and a small number of
+# Role-Based Access Control (RBAC) rules. Targeted restricts the actions of many
+# types of programs, but leaves interactive users largely unaffected.
+# strict: also uses TE and RBAC rules, but on more programs and more aggressively.
+# mls: implements Multi-Level Security (MLS), which introduces even more kinds of
+# labels (sensitivity and category) and rules that govern access based on these.
+# This section provides guidance for the configuration of the targeted policy.
+
+- name: 1.7.1.1 Ensure SELinux is installed
+  package:
+    name: libselinux
+    state: present  
+  tags:
+    - level_1_server
+    - rule_1.7.1.1
+
+# 1.7.1.2 Ensure SELinux is not disabled in bootloader configuration (Automated)
+
+- name: 1.7.1.3 Ensure SELinux policy is configured
+  lineinfile:
+    dest: /etc/selinux/config
+    regexp: "^SELINUXTYPE="
+    line: "SELINUXTYPE=targeted"
+    create: yes  
+  tags:
+    - level_1_server
+    - rule_1.7.1.3
+
+# 1.7.1.4 Ensure the SELinux mode is enforcing or permissive
+
+- name: 1.7.1.5 Ensure the SELinux mode is enforcing
+  selinux:
+    conf: /etc/selinux/config
+    policy: targeted
+    state: enforcing
+  tags:
+    - level_2_server
+    - rule_1.7.1.5
+# 1.7.1.6 Ensure no unconfined services exist (Automated) .117
+# 1.7.1.7 Ensure SETroubleshoot is not installed (Automated) .118
+# 1.7.1.8 Ensure the MCS Translation Service (mcstrans) is not installed
+
+# 1.8 Warning Banners
+# 1.8.1 Command Line Warning Banners 121
+# 1.8.1.1 Ensure message of the day is configured properly (Automated) 122
+# 1.8.1.2 Ensure local login warning banner is configured properly (Automated) 124
+# 1.8.1.3 Ensure remote login warning banner is configured properly (Automated)
+# 1.8.1.4 Ensure permissions on /etc/motd are configured (Automated) 128
+# 1.8.1.5 Ensure permissions on /etc/issue are configured (Automated) .129
+# 1.8.1.6 Ensure permissions on /etc/issue.net are configured (Automated) .130
+
+- name: 1.9 Ensure updates, patches, and additional security software are installed
+  package:
+    name: '*'
+    state: latest
+  tags:
+    - level_1_server
+    - rule_1.9
+
+- name: 1.10 Ensure GDM is removed or login is configured
+  package:
+    name: gdm
+    state: absent
+  tags:
+    - level_1_server
+    - rule_1.10
