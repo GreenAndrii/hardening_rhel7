@@ -221,7 +221,9 @@
 # 1.1.21 Ensure nosuid option set on removable media partitions
 
 - name: 1.1.22 Ensure sticky bit is set on all world-writable directories
-  shell: df --local -P | awk '{if (NR!=1) print $6}' | xargs -I '{}' find '{}' -xdev -type d \( -perm -0002 -a ! -perm -1000 \) 2>/dev/null | xargs -I '{}' chmod a+t '{}'
+  shell: df --local -P | awk '{if (NR!=1) print $6}' | xargs -I '{}' \
+         find '{}' -xdev -type d \( -perm -0002 -a ! -perm -1000 \) 2>/dev/null  | \
+         xargs -I '{}' chmod a+t '{}'
   tags:
     - level_1_server
     - rule_1.1.22
@@ -281,7 +283,7 @@
     - level_1_server
     - rule_1.2.3
 
-- name: 1.2.4 Ensure Red Hat Subscription Manager connection is configured
+- name: 1.2.4 Ensure Red Hat Subscription Manager connection is configured | Ignore erros
   shell: subscription-manager register --username admin-example --password secret --auto-attach --force
   ignore_errors: true # Because I don't have Red Hat subscription account
   tags:
@@ -468,18 +470,67 @@
   tags:
     - level_2_server
     - rule_1.7.1.5
+
 # 1.7.1.6 Ensure no unconfined services exist (Automated) .117
 # 1.7.1.7 Ensure SETroubleshoot is not installed (Automated) .118
 # 1.7.1.8 Ensure the MCS Translation Service (mcstrans) is not installed
 
 # 1.8 Warning Banners
-# 1.8.1 Command Line Warning Banners 121
-# 1.8.1.1 Ensure message of the day is configured properly (Automated) 122
-# 1.8.1.2 Ensure local login warning banner is configured properly (Automated) 124
-# 1.8.1.3 Ensure remote login warning banner is configured properly (Automated)
-# 1.8.1.4 Ensure permissions on /etc/motd are configured (Automated) 128
-# 1.8.1.5 Ensure permissions on /etc/issue are configured (Automated) .129
-# 1.8.1.6 Ensure permissions on /etc/issue.net are configured (Automated) .130
+# Presenting a warning message prior to the normal user login may assist in the prosecution
+# of trespassers on the computer system. Changing some of these login banners also has the
+# side effect of hiding OS version information and other detailed system information from
+# attackers attempting to target specific exploits at a system.
+# Guidelines published by the US Department of Defense require that warning messages
+# include at least the name of the organization that owns the system, the fact that the system
+# is subject to monitoring and that such monitoring is in compliance with local statutes, and
+# that use of the system implies consent to such monitoring. It is important that the
+# organization's legal counsel review the content of all messages before any system
+# modifications are made, as these warning messages are inherently site-specific. More
+# information (including citations of relevant case law) can be found at
+# http://www.justice.gov/criminal/cybercrime/
+# Note: The text provided in the remediation actions for these items is intended as an example
+# only. Please edit to include the specific text for your organization as approved by your legal
+# department.
+
+# 1.8.1 Command Line Warning Banners
+# The /etc/motd, /etc/issue, and /etc/issue.net files govern warning banners for
+# standard command line logins for both local and remote users.
+
+- name: "1.8.1.1 Ensure message of the day is configured properly \n
+      \t 1.8.1.4 Ensure permissions on /etc/motd are configured"
+  file:
+    path: /etc/motd
+    state: absent
+  tags:
+    - level_1_server
+    - rule_1.8.1.1
+    - rule_1.8.1.4
+
+- name: "1.8.1.2 Ensure local login warning banner is configured properly \n
+      \t 1.8.1.5 Ensure permissions on /etc/issue are configured"
+  copy:
+    dest: /etc/issue
+    src: files/issue
+    owner: root
+    group: root
+    mode: 0644
+  tags:
+    - level_1_server
+    - rule_1.8.1.2
+    - rule_1.8.1.5
+    
+- name: "1.8.1.3 Ensure remote login warning banner is configured properly \n
+      \t 1.8.1.6 Ensure permissions on /etc/issue.net are configured"
+  copy:
+    dest: /etc/issue.net
+    src: files/issue
+    owner: root
+    group: root
+    mode: 0644
+  tags:
+    - level_1_server
+    - rule_1.8.1.3
+    - rule_1.8.1.6
 
 - name: 1.9 Ensure updates, patches, and additional security software are installed
   package:
