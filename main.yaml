@@ -8,6 +8,10 @@
   become: yes
 
   tasks:
+    - name: Name and version of the benchmark
+      debug:
+        msg: Using {{ benchmark_name }}
+
     - name: Check if the host is reachable
       ping:
       delegate_to: localhost
