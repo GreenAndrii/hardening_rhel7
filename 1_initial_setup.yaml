@@ -1,4 +1,4 @@
-# {{ benchmark_name }}
+# CIS Red Hat Enterprise Linux 7 Benchmark v3.0.1
 # 1. Initial Setup
 # Items in this section are advised for all systems, but may be difficult or require extensive 
 # preparation after the initial setup of the system.
@@ -232,7 +232,7 @@
   systemd:
     name: autofs
     masked: yes
-    state: stopped
+    # state: stopped
 
   tags:
     - level_1_server
@@ -283,12 +283,12 @@
     - level_1_server
     - rule_1.2.3
 
-- name: 1.2.4 Ensure Red Hat Subscription Manager connection is configured | Ignore erros
-  shell: subscription-manager register --username admin-example --password secret --auto-attach --force
-  ignore_errors: true # Because I don't have Red Hat subscription account
-  tags:
-    - level_1_server
-    - rule_1.2.4
+# - name: 1.2.4 Ensure Red Hat Subscription Manager connection is configured | Ignore erros
+#   shell: subscription-manager register --username admin-example --password secret --auto-attach --force
+#   ignore_errors: true # Because I don't have Red Hat subscription account
+#   tags:
+#     - level_1_server
+#     - rule_1.2.4
 
 - name: 1.2.5 Disable the rhnsd Daemon
   systemd:

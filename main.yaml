@@ -40,7 +40,7 @@
         daemon_reload: yes
         enabled: yes
         masked: no
-        state: reloaded
+        state: restarted
 
     # - name: generate new grub config
     #   shell: grub2-mkconfig -o "{{ grub_cfg.stat.lnk_source }}"
